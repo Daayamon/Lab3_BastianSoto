@@ -1,0 +1,96 @@
+import socket
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad, unpad
+import random
+
+def diffie_hellman(p, g):
+    # Generar aleatoriamente las claves privadas 'a' y 'b' para el intercambio de claves Diffie-Hellman
+    a = random.randint(1, 100)
+    b = random.randint(1, 100)
+    
+    # Calcular las claves públicas 'A' y 'B' usando el intercambio de claves Diffie-Hellman
+    A = ((pow(g, a)) % p)
+    B = ((pow(g, b)) % p)
+    
+    # Calcular las claves compartidas 'Ka' y 'Kb' utilizando las claves públicas recibidas
+    Ka = ((pow(B, a)) % p)
+    Kb = ((pow(A, b)) % p)
+    
+    return Ka, Kb
+
+def aes_encrypt(key, data):
+    # Crear un objeto de cifrado AES en modo ECB con la clave proporcionada
+    cipher = AES.new(key, AES.MODE_ECB)
+    
+    # Asegurarse de que los datos estén en formato utf-8 y realizar el relleno necesario
+    if not data:
+        data = ' '  # o cualquier valor predeterminado no vacío
+    padded_data = pad(data.encode('utf-8'), AES.block_size)
+    
+    # Encriptar los datos
+    encrypted_data = cipher.encrypt(padded_data)
+    
+    return encrypted_data
+
+def aes_decrypt(key, encrypted_data):
+    # Crear un objeto de cifrado AES en modo ECB con la clave proporcionada
+    cipher = AES.new(key, AES.MODE_ECB)
+    
+    # Desencriptar los datos
+    decrypted_data = cipher.decrypt(encrypted_data)
+    
+    try:
+        # Quitar el relleno y decodificar los datos en utf-8
+        unpadded_data = unpad(decrypted_data, AES.block_size)
+        return unpadded_data.decode('utf-8')
+    except ValueError as e:
+        # Manejar el error si ocurre al quitar el relleno
+        print("Error al quitar el relleno:", e)
+        print("Mensaje cifrado original:", encrypted_data)
+        print("Longitud del mensaje cifrado original:", len(encrypted_data))
+        return None
+
+def main():
+    # Configurar el servidor
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind(('127.0.0.1', 12345))
+    server.listen(1)
+    print("Esperando conexión...")
+    conn, addr = server.accept()
+    print("Conectado a", addr)
+
+    p = 13
+    g = 5
+    Ka, Kb = diffie_hellman(p, g)
+
+    # Enviar la clave pública 'Ka' al cliente
+    conn.sendall(str(Ka).encode())
+    
+    # Recibir la clave pública 'Kb' del cliente
+    Kb_received = int(conn.recv(1024).decode())
+
+    print("Clave compartida:", Ka)
+
+    # Clave para AES
+    aes_key = str(Kb_received).zfill(16).encode()
+    print("Clave AES generada:", aes_key)
+
+    # Recibir el mensaje cifrado del cliente
+    encrypted_message_aes = conn.recv(1024)
+    print("Mensaje cifrado recibido del cliente:", encrypted_message_aes)
+
+    # Desencriptar el mensaje con AES
+    decrypted_message_aes = aes_decrypt(aes_key, encrypted_message_aes)
+
+    # Imprimir el mensaje desencriptado
+    print("Mensaje AES desencriptado:", decrypted_message_aes)
+
+    # Escribir el mensaje desencriptado en un archivo
+    with open("mensajerecibido_aes.txt", "w+") as file:
+        file.write(decrypted_message_aes)
+
+    # Cerrar la conexión
+    conn.close()
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,65 @@
+import socket
+from Crypto.Cipher import DES3
+from Crypto.Protocol.KDF import PBKDF2
+import random
+
+
+def diffie_hellman(p, g):
+    # Generar aleatoriamente las claves privadas 'a' y 'b' para el intercambio de claves Diffie-Hellman
+    a = random.randint(1, 100)
+    b = random.randint(1, 100)
+    
+    # Calcular las claves públicas 'A' y 'B' usando el intercambio de claves Diffie-Hellman
+    A = ((pow(g, a)) % p)
+    B = ((pow(g, b)) % p)
+    
+    # Calcular las claves compartidas 'Ka' y 'Kb' utilizando las claves públicas recibidas
+    Ka = ((pow(B, a)) % p)
+    Kb = ((pow(A, b)) % p)
+    return Ka, Kb
+
+
+
+    # Configurar el servidor
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.bind(('127.0.0.1', 12345))
+server.listen(1)
+print("Esperando conexión...")
+conn, addr = server.accept()
+print("Conectado a", addr)
+    
+p = 13
+g = 5
+
+Ka, Kb = diffie_hellman(p, g)
+
+    # Enviar la clave pública 'Ka' al cliente
+conn.sendall(str(Ka).encode())
+    
+    # Recibir la clave pública 'Kb' del cliente
+Kb_received = int(conn.recv(1024).decode())
+
+print("Clave compartida:", Ka)
+
+    # Clave para 3DES (ajustar la longitud de la clave según la variante de 3DES utilizada)
+key = PBKDF2(str(Kb_received).encode(), b'salt', dkLen=24)
+print("Clave 3DES generada:", key)
+cipher = DES3.new(key, DES3.MODE_ECB)
+
+
+    # Recibir el mensaje cifrado del cliente
+encrypted_message_des3 = conn.recv(1024)
+print("Mensaje cifrado recibido del cliente:", encrypted_message_des3)
+
+    # Desencriptar el mensaje con 3DES
+decrypted_message_des3 = cipher.decrypt(encrypted_message_des3).decode().rstrip()
+
+    # Imprimir el mensaje desencriptado
+print("Mensaje 3DES desencriptado:", decrypted_message_des3)
+
+    # Escribir el mensaje desencriptado en un archivo
+with open("mensajerecibido_3des.txt", "w") as file:
+    file.write(decrypted_message_des3)
+
+    # Cerrar la conexión
+conn.close()
